@@ -5,6 +5,7 @@ import com.example.webmvcemployees.Boundary.EmployeeBoundary
 import com.example.webmvcemployees.Entity.EmployeeCrud
 import com.example.webmvcemployees.Exceptions.EmailExistsException
 import com.example.webmvcemployees.Exceptions.InvalidInputException
+import com.example.webmvcemployees.Exceptions.NotFoundException
 import com.example.webmvcemployees.Exceptions.UnauthorizedException
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -20,40 +21,35 @@ import org.springframework.transaction.annotation.Transactional
 class EmployeeServiceImpl(
     val employeeCrud: EmployeeCrud) : EmployeeService {
 
-    @Transactional(readOnly = false)
+    @Transactional
     override fun create(newEmployee: EmployeeBoundary): EmployeeBoundary {
-        val rv = EmployeeBoundary()
-        if (isValidEmail(newEmployee.email)) {
-            rv.email = newEmployee.email
-            if(!this.employeeCrud.findById(rv.email!!).isEmpty)
-                throw EmailExistsException("Email already exists")
-        } else{
+        val email = newEmployee.email ?: throw InvalidInputException("Email cannot be null")
+
+        if (!isValidEmail(email)) {
             throw InvalidInputException("Invalid email format")
         }
-        rv.name = newEmployee.name
-        if(isValidPassword(newEmployee.password)) {
-            rv.password = newEmployee.password
-        } else{
+
+        if (employeeCrud.existsById(email)) {
+            throw EmailExistsException("Email already exists")
+        }
+
+        if (!isValidPassword(newEmployee.password)) {
             throw InvalidInputException("Invalid password")
         }
-        if(isValidDate(newEmployee.birthdate)) {
-            val birthdate = BirthDate()
-            birthdate.day = newEmployee.birthdate!!.day
-            birthdate.month = newEmployee.birthdate!!.month
-            birthdate.year = newEmployee.birthdate!!.year
-            rv.birthdate = birthdate
-        } else{
+
+        if (!isValidDate(newEmployee.birthdate)) {
             throw InvalidInputException("Invalid date")
         }
-        if(newEmployee.roles == null || newEmployee.roles!!.isEmpty()){
-            throw InvalidInputException("Invalid role: cannot be empty")
+
+        if (newEmployee.roles.isNullOrEmpty()) {
+            throw InvalidInputException("Invalid role: cannot be null or empty")
         }
-        if(newEmployee.roles!!.contains("")){
+
+        if (newEmployee.roles!!.any { it.isBlank() }) {
             throw InvalidInputException("Invalid role: role cannot be empty string")
         }
-        rv.roles = newEmployee.roles
-        return EmployeeBoundary(this.employeeCrud.save(rv.toEntity()))
 
+        return EmployeeBoundary(this.employeeCrud.save(newEmployee.toEntity()))
     }
 
     @Transactional(readOnly = true)
@@ -62,18 +58,14 @@ class EmployeeServiceImpl(
             throw InvalidInputException("Invalid email format")
         }
 
-        val optionalEmployee = this.employeeCrud.findById(email)
+        val employee = employeeCrud.findById(email)
+            .orElseThrow { UnauthorizedException("Invalid email or password") }
 
-        if (optionalEmployee.isPresent) {
-            val employee = optionalEmployee.get()
-            if (employee.password == password) {
-                return employee.toBoundary()
-            } else {
-                throw UnauthorizedException("Invalid email or password")
-            }
-        } else {
+        if (employee.password != password) {
             throw UnauthorizedException("Invalid email or password")
         }
+
+        return employee.toBoundary()
     }
 
     @Transactional(readOnly = true)
@@ -117,6 +109,71 @@ class EmployeeServiceImpl(
     @Transactional(readOnly = false)
     override fun clean() {
         this.employeeCrud.deleteAll()
+    }
+
+    @Transactional(readOnly = false)
+    override fun bind(employeeEmail: String, managerEmail: String) {
+        if(!isValidEmail(employeeEmail)) {
+            throw InvalidInputException("Invalid employee email")
+        }
+        if(!isValidEmail(managerEmail)) {
+            throw InvalidInputException("Invalid manager email")
+        }
+
+        val employee = employeeCrud.findById(employeeEmail)
+            .orElseThrow { NotFoundException("Employee not found: $employeeEmail") }
+
+        val manager = employeeCrud.findById(managerEmail)
+            .orElseThrow { NotFoundException("Manager not found: $managerEmail") }
+
+        // Prevent setting themselves as their own manager
+        if (employee.email == manager.email) {
+            throw InvalidInputException("An employee cannot be their own manager")
+        }
+
+        employee.manager = manager
+        employeeCrud.save(employee)
+    }
+
+    @Transactional(readOnly = true)
+    override fun getEmployeesManager(employeeEmail: String): EmployeeBoundary {
+        if(!isValidEmail(employeeEmail)) {
+            throw InvalidInputException("Invalid employee email")
+        }
+        val employee = employeeCrud.findById(employeeEmail)
+            .orElseThrow { NotFoundException("Employee not found: $employeeEmail") }
+
+        val manager = employee.manager ?: throw NotFoundException("Employee $employeeEmail has no manager")
+
+        return manager.toBoundary()
+    }
+
+    @Transactional(readOnly = true)
+    override fun getSubordinates(managerEmail: String, page: Int, size: Int): List<EmployeeBoundary> {
+        if (!isValidEmail(managerEmail)) {
+            throw InvalidInputException("Invalid email format")
+        }
+
+//        if (!employeeCrud.existsById(managerEmail)) {
+//            throw NotFoundException("Manager not found: $managerEmail")
+//        }
+
+        return this.employeeCrud.findAllByManagerEmail(managerEmail,PageRequest.of(page, size, Sort.Direction.ASC,"email"))
+            .map { EmployeeBoundary(it) }
+            .toList()
+    }
+
+    @Transactional(readOnly = false)
+    override fun unbind(employeeEmail: String) {
+        if (!isValidEmail(employeeEmail)) {
+            throw InvalidInputException("Invalid email format")
+        }
+
+        val employee = employeeCrud.findById(employeeEmail)
+            .orElseThrow { NotFoundException("Employee not found: $employeeEmail") }
+
+        employee.manager = null
+        employeeCrud.save(employee)
     }
 
 

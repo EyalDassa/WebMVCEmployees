@@ -10,4 +10,9 @@ interface EmployeeService {
     fun getByRole(value: String, page: Int, size: Int): List<EmployeeBoundary>
     fun getByAge(value: String, page: Int, size: Int): List<EmployeeBoundary>
     fun clean()
+
+    fun bind(employeeEmail: String, managerEmail: String)
+    fun getEmployeesManager(employeeEmail: String): EmployeeBoundary
+    fun getSubordinates(managerEmail: String, page: Int, size: Int): List<EmployeeBoundary>
+    fun unbind(employeeEmail: String)
 }

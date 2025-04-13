@@ -24,5 +24,6 @@ interface EmployeeCrud : JpaRepository<EmployeeEntity, String> {
         pageable: Pageable
     ): Page<EmployeeEntity>
 
+    fun findAllByManagerEmail(managerEmail: String, pageable: Pageable): Page<EmployeeEntity>
 
 }
