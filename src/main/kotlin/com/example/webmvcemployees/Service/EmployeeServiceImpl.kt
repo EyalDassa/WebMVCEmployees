@@ -21,7 +21,7 @@ import org.springframework.transaction.annotation.Transactional
 class EmployeeServiceImpl(
     val employeeCrud: EmployeeCrud) : EmployeeService {
 
-    @Transactional
+    @Transactional(readOnly = false)
     override fun create(newEmployee: EmployeeBoundary): EmployeeBoundary {
         val email = newEmployee.email ?: throw InvalidInputException("Email cannot be null")
 
