@@ -1,0 +1,15 @@
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+  # -- datasource settings for Postgres container --
+  datasource:
+    url: jdbc:postgresql://localhost:5432/mydatabase
+    username: myuser
+    password: secret
+
+# tell Spring Boot to expose exception traces over HTTP
+server:
+  error:
+    include-stacktrace: always

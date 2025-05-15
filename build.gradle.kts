@@ -4,6 +4,13 @@ plugins {
     id("org.springframework.boot") version "3.4.4"
     id("io.spring.dependency-management") version "1.1.7"
     kotlin("plugin.jpa") version "1.9.25"
+
+    id("org.graalvm.buildtools.native") version "0.10.6"
+}
+
+configurations.all {
+    // drop the old commons-logging to avoid conflicts
+    exclude(group = "commons-logging", module = "commons-logging")
 }
 
 group = "il.ac.afeka.cloud"
@@ -58,3 +65,14 @@ allOpen {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+graalvmNative {
+    binaries {
+        named("main") {
+            imageName.set("webmvc-employees")
+            // show full stack traces on errors
+            buildArgs.add("-H:+ReportExceptionStackTraces")
+        }
+    }
+}
+
